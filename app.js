@@ -18,8 +18,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const currentTabTitle = document.getElementById('current-tab-title');
     const navLinks = document.querySelectorAll('.nav-link');
     const filterConverted = document.getElementById('filter-converted');
-    const monthFilter = document.getElementById('month-filter');
-    const yearFilter = document.getElementById('year-filter');
+    const periodFilter = document.getElementById('period-filter');
     const searchFilter = document.getElementById('search-filter');
     
     currentTabTitle.textContent = "Loading Live Data...";
@@ -28,16 +27,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let currentTab = 'In Funnel';
 
+    // Helper functions for matching
     const isExcluded = (row, tab) => {
         const valStr = Object.values(row).join(' ').toLowerCase();
-        if(tab === 'In Funnel' && valStr.includes('closed') && !valStr.includes('won')) {
-             return false; 
-        }
+        if(tab === 'In Funnel' && valStr.includes('closed') && !valStr.includes('won')) return false; 
         return false;
     };
 
     const matchesMonth = (row, monthStr) => {
-        if (monthStr === 'All') return true;
         const rowStr = Object.values(row).join(' ').toLowerCase();
         const monthMap = {
             'Jan': ['jan', '/01/', '-01-', '01/'], 'Feb': ['feb', '/02/', '-02-', '02/'],
@@ -50,10 +47,52 @@ document.addEventListener('DOMContentLoaded', async () => {
         return monthMap[monthStr].some(m => rowStr.includes(m));
     };
 
-    const matchesYear = (row, yearStr) => {
-        if (yearStr === 'All') return true;
+    // Scan for dynamic periods available in exactly this spreadsheet
+    const populatePeriods = () => {
+        const foundPeriods = new Set();
+        const allMonths = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        const allYears = ['2022','2023','2024','2025','2026','2027'];
+        
+        Object.values(liveData).forEach(tab => {
+            tab.forEach(row => {
+                const rowStr = Object.values(row).join(' ').toLowerCase();
+                allYears.forEach(y => {
+                    if (rowStr.includes(y)) {
+                        allMonths.forEach(m => {
+                            if(matchesMonth(row, m)) foundPeriods.add(`${m} ${y}`);
+                        });
+                    }
+                });
+            });
+        });
+
+        // Convert to array and sort chronologically roughly
+        const periodList = Array.from(foundPeriods).sort((a,b) => {
+            const dateA = new Date(a); const dateB = new Date(b);
+            return dateB - dateA; // newest first
+        });
+
+        // Inject into dropdowns
+        const modalPeriod = document.getElementById('modal-period');
+        periodList.forEach(p => {
+            const opt1 = document.createElement('option');
+            opt1.value = p; opt1.textContent = p;
+            periodFilter.appendChild(opt1);
+            
+            const opt2 = document.createElement('option');
+            opt2.value = p; opt2.textContent = p;
+            modalPeriod.appendChild(opt2);
+        });
+    };
+    
+    populatePeriods();
+
+    // Check specific selected combined period
+    const matchesPeriod = (row, periodValue) => {
+        if (periodValue === 'All') return true;
+        const [mStr, yStr] = periodValue.split(' ');
         const rowStr = Object.values(row).join(' ').toLowerCase();
-        return rowStr.includes(yearStr.toLowerCase());
+        return matchesMonth(row, mStr) && rowStr.includes(yStr.toLowerCase());
     };
 
     const matchesSearch = (row, query) => {
@@ -86,7 +125,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (isExcluded(item, currentTab)) return false;
             const passConverted = filterConverted.checked ? 
                 Object.values(item).join(' ').toLowerCase().includes('converted') || Object.values(item).join(' ').toLowerCase().includes('won') : true;
-            return passConverted && matchesMonth(item, monthFilter.value) && matchesYear(item, yearFilter.value) && matchesSearch(item, searchFilter.value);
+            return passConverted && matchesPeriod(item, periodFilter.value) && matchesSearch(item, searchFilter.value);
         });
 
         filteredData.forEach(item => {
@@ -116,7 +155,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const passConverted = filterConverted.checked ? 
                     Object.values(row).join(' ').toLowerCase().includes('converted') || Object.values(row).join(' ').toLowerCase().includes('won') : true;
 
-                if (passConverted && matchesMonth(row, monthFilter.value) && matchesYear(row, yearFilter.value) && matchesSearch(row, searchFilter.value)) {
+                if (passConverted && matchesPeriod(row, periodFilter.value) && matchesSearch(row, searchFilter.value)) {
                     total++;
                     const rowStr = Object.values(row).join(' ').toLowerCase();
                     if (rowStr.includes('in funnel') || rowStr.includes('progress') || tab === 'In Funnel') inFunnel++;
@@ -143,8 +182,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     filterConverted.addEventListener('change', renderTable);
-    monthFilter.addEventListener('change', renderTable);
-    yearFilter.addEventListener('change', renderTable);
+    periodFilter.addEventListener('change', renderTable);
     searchFilter.addEventListener('input', renderTable);
 
     // PDF Report Generator Flow
@@ -152,8 +190,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const modal = document.getElementById('report-modal');
     const cancelModal = document.getElementById('modal-cancel');
     const generateModal = document.getElementById('modal-generate');
-    const modalMonth = document.getElementById('modal-month');
-    const modalYear = document.getElementById('modal-year');
+    const modalPeriod = document.getElementById('modal-period');
     const hiddenReport = document.getElementById('hidden-report-container');
 
     downloadBtn.addEventListener('click', () => {
@@ -168,58 +205,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         generateModal.textContent = "Generating...";
         generateModal.disabled = true;
 
-        const selMonth = modalMonth.value;
-        const selYear = modalYear.value;
-        const monthText = modalMonth.options[modalMonth.selectedIndex].text;
+        const selPeriod = modalPeriod.value;
         
-        // 1. Compute Metrics for Report
+        // Compute Metrics for Report
         let repTotal = 0, repFunnel = 0, repConverted = 0;
         let tabCounts = {}; Object.keys(TABS).forEach(t => tabCounts[t] = 0);
-        let consolidatedTables = '';
 
         Object.keys(liveData).forEach(tab => {
-            let tabHtml = '';
-            let rowsInTab = 0;
             const data = liveData[tab];
-            if(data.length > 0) {
-                const headers = Object.keys(data[0]);
-                tabHtml += `<h4 style="margin-top:2rem; margin-bottom:0.5rem; color:#1A73E8;">${tab}</h4>`;
-                tabHtml += `<table class="print-reports-table"><thead><tr>`;
-                headers.forEach(h => tabHtml += `<th>${h}</th>`);
-                tabHtml += `</tr></thead><tbody>`;
-
-                data.forEach(row => {
-                    if (isExcluded(row, tab)) return;
-                    if (matchesMonth(row, selMonth) && matchesYear(row, selYear)) {
-                        repTotal++;
-                        tabCounts[tab]++;
-                        const rowStr = Object.values(row).join(' ').toLowerCase();
-                        if (rowStr.includes('in funnel') || rowStr.includes('progress') || tab === 'In Funnel') repFunnel++;
-                        if (rowStr.includes('converted') || rowStr.includes('won')) repConverted++;
-                        
-                        tabHtml += `<tr>`;
-                        headers.forEach(h => tabHtml += `<td>${row[h] || ''}</td>`);
-                        tabHtml += `</tr>`;
-                        rowsInTab++;
-                    }
-                });
-                tabHtml += `</tbody></table>`;
-            }
-            if(rowsInTab > 0) consolidatedTables += tabHtml;
+            data.forEach(row => {
+                if (isExcluded(row, tab)) return;
+                if (matchesPeriod(row, selPeriod)) {
+                    repTotal++;
+                    tabCounts[tab]++;
+                    const rowStr = Object.values(row).join(' ').toLowerCase();
+                    if (rowStr.includes('in funnel') || rowStr.includes('progress') || tab === 'In Funnel') repFunnel++;
+                    if (rowStr.includes('converted') || rowStr.includes('won')) repConverted++;
+                }
+            });
         });
 
-        if(repTotal === 0) consolidatedTables = "<p>No leads found for the selected time period.</p>";
-
-        // 2. Populate HTML
-        document.getElementById('print-date-range').textContent = `${selMonth === 'All' ? 'All Time' : monthText} ${selYear === 'All' ? '' : selYear}`;
+        // Populate HTML (Removed massive data tables entirely)
+        document.getElementById('print-date-range').textContent = selPeriod === 'All' ? 'All Time' : selPeriod;
         document.getElementById('print-total').textContent = repTotal;
         document.getElementById('print-funnel').textContent = repFunnel;
         document.getElementById('print-converted').textContent = repConverted;
         document.getElementById('print-rate').textContent = repTotal > 0 ? ((repConverted/repTotal)*100).toFixed(1) + '%' : '0%';
-        document.getElementById('print-tables-container').innerHTML = consolidatedTables;
 
-        // 3. Render ChartJS
-        hiddenReport.style.display = 'block'; // Unhide to render charts properly measuring dimensions
+        // Render ChartJS
+        hiddenReport.style.display = 'block'; 
         
         if (pieChartInstance) pieChartInstance.destroy();
         if (barChartInstance) barChartInstance.destroy();
@@ -230,7 +244,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             data: {
                 labels: ['Converted', 'In Funnel', 'Lost/Other'],
                 datasets: [{
-                    data: [repConverted, repFunnel, repTotal - repConverted - repFunnel],
+                    data: [repConverted, repFunnel, Math.max(0, repTotal - repConverted - repFunnel)],
                     backgroundColor: ['#10B981', '#F9A825', '#DC3545']
                 }]
             },
@@ -251,24 +265,24 @@ document.addEventListener('DOMContentLoaded', async () => {
             options: { responsive: true, maintainAspectRatio: false }
         });
 
-        // 4. Fire html2pdf
+        // Fire html2pdf precisely on portrait A4 without page breaks
         const opt = {
-            margin:       0.3,
-            filename:     `KlearStack_Report_${selMonth}_${selYear}.pdf`,
-            image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  { scale: 2, useCORS: true }, // useCORS allows KlearStack logo to load
-            jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
+            margin:       0,
+            filename:     `KlearStack_Executive_Report_${selPeriod.replace(' ', '_')}.pdf`,
+            image:        { type: 'jpeg', quality: 1 },
+            html2canvas:  { scale: 2, useCORS: true, letterRendering: true }, 
+            jsPDF:        { unit: 'px', format: [800, 1100], orientation: 'portrait' } 
         };
 
-        // Small delay to let charts finish animation
+        // Delay to let charts finish animation, then save perfect 1 pager
         setTimeout(() => {
             html2pdf().set(opt).from(document.getElementById('print-layout')).save().then(() => {
                 hiddenReport.style.display = 'none';
                 modal.style.display = 'none';
-                generateModal.textContent = "Generate & Download";
+                generateModal.textContent = "Generate Report";
                 generateModal.disabled = false;
             });
-        }, 500);
+        }, 600);
     });
 });
 
