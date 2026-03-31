@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const downloadBtn = document.getElementById('download-pdf');
     const filterConverted = document.getElementById('filter-converted');
     const monthFilter = document.getElementById('month-filter');
+    const yearFilter = document.getElementById('year-filter');
     const searchFilter = document.getElementById('search-filter');
     
     // Set loading state
@@ -50,6 +51,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             'Nov': ['nov', '/11/', '-11-', '11/'], 'Dec': ['dec', '/12/', '-12-', '12/']
         };
         return monthMap[monthStr].some(m => rowStr.includes(m));
+    };
+
+    // Helper to match year
+    const matchesYear = (row, yearStr) => {
+        if (yearStr === 'All') return true;
+        const rowStr = Object.values(row).join(' ').toLowerCase();
+        return rowStr.includes(yearStr.toLowerCase());
     };
 
     // Helper to match search
@@ -88,9 +96,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 : true;
             
             const passMonth = matchesMonth(item, monthFilter.value);
+            const passYear = matchesYear(item, yearFilter.value);
             const passSearch = matchesSearch(item, searchFilter.value);
 
-            return passConverted && passMonth && passSearch;
+            return passConverted && passMonth && passYear && passSearch;
         });
 
         filteredData.forEach(item => {
@@ -127,9 +136,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     : true;
                 
                 const passMonth = matchesMonth(row, monthFilter.value);
+                const passYear = matchesYear(row, yearFilter.value);
                 const passSearch = matchesSearch(row, searchFilter.value);
 
-                if (passConverted && passMonth && passSearch) {
+                if (passConverted && passMonth && passYear && passSearch) {
                     total++;
                     const rowStr = Object.values(row).join(' ').toLowerCase();
                     if (rowStr.includes('in funnel') || rowStr.includes('progress')) inFunnel++;
@@ -159,6 +169,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     filterConverted.addEventListener('change', renderTable);
     monthFilter.addEventListener('change', renderTable);
+    yearFilter.addEventListener('change', renderTable);
     searchFilter.addEventListener('input', renderTable);
 
     downloadBtn.addEventListener('click', () => {
