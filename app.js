@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const downloadBtn = document.getElementById('download-pdf');
     const filterConverted = document.getElementById('filter-converted');
     const monthFilter = document.getElementById('month-filter');
+    const searchFilter = document.getElementById('search-filter');
     
     // Set loading state
     currentTabTitle.textContent = "Loading Live Data...";
@@ -30,11 +31,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Helper to check if a row is strike-through equivalent (usually means Junk/Closed/Irrelevant)
     const isExcluded = (row) => {
         const valStr = Object.values(row).join(' ').toLowerCase();
-        // The user said "dont use the lead data which are stricthrough". Since CSV doesn't have format,
-        // we guess it means closed/junk/irrelevant unless it's in the lost funnel.
         if(currentTab === 'In Funnel' && valStr.includes('closed') && !valStr.includes('won')) {
-             // For 'In Funnel' specifically, they probably don't want to see dead leads.
-             // But we will just render exactly what the sheet gives because they asked to "show the same data as seen in sheet".
              return false; 
         }
         return false;
@@ -43,26 +40,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Helper to match month
     const matchesMonth = (row, monthStr) => {
         if (monthStr === 'All') return true;
-        
         const rowStr = Object.values(row).join(' ').toLowerCase();
-        
-        // Month names Map
         const monthMap = {
-            'Jan': ['jan', '/01/', '-01-', '01/'],
-            'Feb': ['feb', '/02/', '-02-', '02/'],
-            'Mar': ['mar', '/03/', '-03-', '03/'],
-            'Apr': ['apr', '/04/', '-04-', '04/'],
-            'May': ['may', '/05/', '-05-', '05/'],
-            'Jun': ['jun', '/06/', '-06-', '06/'],
-            'Jul': ['jul', '/07/', '-07-', '07/'],
-            'Aug': ['aug', '/08/', '-08-', '08/'],
-            'Sep': ['sep', '/09/', '-09-', '09/'],
-            'Oct': ['oct', '/10/', '-10-', '10/'],
-            'Nov': ['nov', '/11/', '-11-', '11/'],
-            'Dec': ['dec', '/12/', '-12-', '12/']
+            'Jan': ['jan', '/01/', '-01-', '01/'], 'Feb': ['feb', '/02/', '-02-', '02/'],
+            'Mar': ['mar', '/03/', '-03-', '03/'], 'Apr': ['apr', '/04/', '-04-', '04/'],
+            'May': ['may', '/05/', '-05-', '05/'], 'Jun': ['jun', '/06/', '-06-', '06/'],
+            'Jul': ['jul', '/07/', '-07-', '07/'], 'Aug': ['aug', '/08/', '-08-', '08/'],
+            'Sep': ['sep', '/09/', '-09-', '09/'], 'Oct': ['oct', '/10/', '-10-', '10/'],
+            'Nov': ['nov', '/11/', '-11-', '11/'], 'Dec': ['dec', '/12/', '-12-', '12/']
         };
-
         return monthMap[monthStr].some(m => rowStr.includes(m));
+    };
+
+    // Helper to match search
+    const matchesSearch = (row, query) => {
+        if (!query.trim()) return true;
+        const rowStr = Object.values(row).join(' ').toLowerCase();
+        return rowStr.includes(query.trim().toLowerCase());
     };
 
     const renderTable = () => {
@@ -94,8 +88,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 : true;
             
             const passMonth = matchesMonth(item, monthFilter.value);
+            const passSearch = matchesSearch(item, searchFilter.value);
 
-            return passConverted && passMonth;
+            return passConverted && passMonth && passSearch;
         });
 
         filteredData.forEach(item => {
@@ -123,22 +118,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     function calculateMetrics() {
         let total = 0, inFunnel = 0, converted = 0;
         
-        // Count across all tabs based on simple keywords as we don't have unified statuses,
-        // but APPLY the current active filters to the global count so metrics update properly!
         Object.values(liveData).forEach(tabData => {
             tabData.forEach(row => {
-                // Apply global excludes
                 if (isExcluded(row)) return;
 
-                // Apply active toggles
                 const passConverted = filterConverted.checked ? 
                     Object.values(row).join(' ').toLowerCase().includes('converted') || Object.values(row).join(' ').toLowerCase().includes('won') 
                     : true;
                 
-                // Apply active month filter
                 const passMonth = matchesMonth(row, monthFilter.value);
+                const passSearch = matchesSearch(row, searchFilter.value);
 
-                if (passConverted && passMonth) {
+                if (passConverted && passMonth && passSearch) {
                     total++;
                     const rowStr = Object.values(row).join(' ').toLowerCase();
                     if (rowStr.includes('in funnel') || rowStr.includes('progress')) inFunnel++;
@@ -168,6 +159,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     filterConverted.addEventListener('change', renderTable);
     monthFilter.addEventListener('change', renderTable);
+    searchFilter.addEventListener('input', renderTable);
 
     downloadBtn.addEventListener('click', () => {
         const element = document.getElementById('report-content');
