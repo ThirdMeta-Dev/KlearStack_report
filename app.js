@@ -9,36 +9,33 @@ const TABS = {
 };
 
 let liveData = {};
+let pieChartInstance = null;
+let barChartInstance = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
     const tableHead = document.getElementById('table-head');
     const tableBody = document.getElementById('table-body');
     const currentTabTitle = document.getElementById('current-tab-title');
     const navLinks = document.querySelectorAll('.nav-link');
-    const downloadBtn = document.getElementById('download-pdf');
     const filterConverted = document.getElementById('filter-converted');
     const monthFilter = document.getElementById('month-filter');
     const yearFilter = document.getElementById('year-filter');
     const searchFilter = document.getElementById('search-filter');
     
-    // Set loading state
     currentTabTitle.textContent = "Loading Live Data...";
     
-    // Fetch and parse all tabs
     await loadAllData();
 
     let currentTab = 'In Funnel';
 
-    // Helper to check if a row is strike-through equivalent (usually means Junk/Closed/Irrelevant)
-    const isExcluded = (row) => {
+    const isExcluded = (row, tab) => {
         const valStr = Object.values(row).join(' ').toLowerCase();
-        if(currentTab === 'In Funnel' && valStr.includes('closed') && !valStr.includes('won')) {
+        if(tab === 'In Funnel' && valStr.includes('closed') && !valStr.includes('won')) {
              return false; 
         }
         return false;
     };
 
-    // Helper to match month
     const matchesMonth = (row, monthStr) => {
         if (monthStr === 'All') return true;
         const rowStr = Object.values(row).join(' ').toLowerCase();
@@ -53,14 +50,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         return monthMap[monthStr].some(m => rowStr.includes(m));
     };
 
-    // Helper to match year
     const matchesYear = (row, yearStr) => {
         if (yearStr === 'All') return true;
         const rowStr = Object.values(row).join(' ').toLowerCase();
         return rowStr.includes(yearStr.toLowerCase());
     };
 
-    // Helper to match search
     const matchesSearch = (row, query) => {
         if (!query.trim()) return true;
         const rowStr = Object.values(row).join(' ').toLowerCase();
@@ -71,7 +66,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const data = liveData[currentTab];
         if (!data || data.length === 0) {
             tableHead.innerHTML = '<th>Status</th>';
-            tableBody.innerHTML = '<tr><td>No data found or sheet is private (Check Google Sheet permissions).</td></tr>';
+            tableBody.innerHTML = '<tr><td>No data found or sheet is private.</td></tr>';
             currentTabTitle.textContent = currentTab;
             return;
         }
@@ -87,19 +82,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             tableHead.appendChild(th);
         });
 
-        // Apply Filters
         const filteredData = data.filter(item => {
-            if (isExcluded(item)) return false;
-            
+            if (isExcluded(item, currentTab)) return false;
             const passConverted = filterConverted.checked ? 
-                Object.values(item).join(' ').toLowerCase().includes('converted') || Object.values(item).join(' ').toLowerCase().includes('won') 
-                : true;
-            
-            const passMonth = matchesMonth(item, monthFilter.value);
-            const passYear = matchesYear(item, yearFilter.value);
-            const passSearch = matchesSearch(item, searchFilter.value);
-
-            return passConverted && passMonth && passYear && passSearch;
+                Object.values(item).join(' ').toLowerCase().includes('converted') || Object.values(item).join(' ').toLowerCase().includes('won') : true;
+            return passConverted && matchesMonth(item, monthFilter.value) && matchesYear(item, yearFilter.value) && matchesSearch(item, searchFilter.value);
         });
 
         filteredData.forEach(item => {
@@ -108,13 +95,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const td = document.createElement('td');
                 const val = item[header] || '';
                 
-                if (val.toLowerCase().includes('closed') || val.toLowerCase().includes('lost')) {
-                     td.innerHTML = `<span class="danger">${val}</span>`;
-                } else if (val.toLowerCase().includes('won') || val.toLowerCase().includes('converted')) {
-                     td.innerHTML = `<span class="success">${val}</span>`;
-                } else {
-                     td.textContent = val;
-                }
+                if (val.toLowerCase().includes('closed') || val.toLowerCase().includes('lost')) td.innerHTML = `<span class="danger">${val}</span>`;
+                else if (val.toLowerCase().includes('won') || val.toLowerCase().includes('converted')) td.innerHTML = `<span class="success">${val}</span>`;
+                else td.textContent = val;
+                
                 tr.appendChild(td);
             });
             tableBody.appendChild(tr);
@@ -123,26 +107,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         calculateMetrics();
     };
 
-    // Calculate dynamic metrics based on active filters
     function calculateMetrics() {
         let total = 0, inFunnel = 0, converted = 0;
         
-        Object.values(liveData).forEach(tabData => {
-            tabData.forEach(row => {
-                if (isExcluded(row)) return;
-
+        Object.keys(liveData).forEach(tab => {
+            liveData[tab].forEach(row => {
+                if (isExcluded(row, tab)) return;
                 const passConverted = filterConverted.checked ? 
-                    Object.values(row).join(' ').toLowerCase().includes('converted') || Object.values(row).join(' ').toLowerCase().includes('won') 
-                    : true;
-                
-                const passMonth = matchesMonth(row, monthFilter.value);
-                const passYear = matchesYear(row, yearFilter.value);
-                const passSearch = matchesSearch(row, searchFilter.value);
+                    Object.values(row).join(' ').toLowerCase().includes('converted') || Object.values(row).join(' ').toLowerCase().includes('won') : true;
 
-                if (passConverted && passMonth && passYear && passSearch) {
+                if (passConverted && matchesMonth(row, monthFilter.value) && matchesYear(row, yearFilter.value) && matchesSearch(row, searchFilter.value)) {
                     total++;
                     const rowStr = Object.values(row).join(' ').toLowerCase();
-                    if (rowStr.includes('in funnel') || rowStr.includes('progress')) inFunnel++;
+                    if (rowStr.includes('in funnel') || rowStr.includes('progress') || tab === 'In Funnel') inFunnel++;
                     if (rowStr.includes('converted') || rowStr.includes('won')) converted++;
                 }
             });
@@ -154,10 +131,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('conversion-rate').textContent = total > 0 ? ((converted/total)*100).toFixed(1) + '%' : '0%';
     }
 
-    // Initial Render
     renderTable();
 
-    // Event Listeners
     navLinks.forEach(link => {
         link.addEventListener('click', (e) => {
             navLinks.forEach(nl => nl.classList.remove('active'));
@@ -172,38 +147,143 @@ document.addEventListener('DOMContentLoaded', async () => {
     yearFilter.addEventListener('change', renderTable);
     searchFilter.addEventListener('input', renderTable);
 
+    // PDF Report Generator Flow
+    const downloadBtn = document.getElementById('download-pdf');
+    const modal = document.getElementById('report-modal');
+    const cancelModal = document.getElementById('modal-cancel');
+    const generateModal = document.getElementById('modal-generate');
+    const modalMonth = document.getElementById('modal-month');
+    const modalYear = document.getElementById('modal-year');
+    const hiddenReport = document.getElementById('hidden-report-container');
+
     downloadBtn.addEventListener('click', () => {
-        const element = document.getElementById('report-content');
+        modal.style.display = 'flex';
+    });
+
+    cancelModal.addEventListener('click', () => {
+        modal.style.display = 'none';
+    });
+
+    generateModal.addEventListener('click', async () => {
+        generateModal.textContent = "Generating...";
+        generateModal.disabled = true;
+
+        const selMonth = modalMonth.value;
+        const selYear = modalYear.value;
+        const monthText = modalMonth.options[modalMonth.selectedIndex].text;
+        
+        // 1. Compute Metrics for Report
+        let repTotal = 0, repFunnel = 0, repConverted = 0;
+        let tabCounts = {}; Object.keys(TABS).forEach(t => tabCounts[t] = 0);
+        let consolidatedTables = '';
+
+        Object.keys(liveData).forEach(tab => {
+            let tabHtml = '';
+            let rowsInTab = 0;
+            const data = liveData[tab];
+            if(data.length > 0) {
+                const headers = Object.keys(data[0]);
+                tabHtml += `<h4 style="margin-top:2rem; margin-bottom:0.5rem; color:#1A73E8;">${tab}</h4>`;
+                tabHtml += `<table class="print-reports-table"><thead><tr>`;
+                headers.forEach(h => tabHtml += `<th>${h}</th>`);
+                tabHtml += `</tr></thead><tbody>`;
+
+                data.forEach(row => {
+                    if (isExcluded(row, tab)) return;
+                    if (matchesMonth(row, selMonth) && matchesYear(row, selYear)) {
+                        repTotal++;
+                        tabCounts[tab]++;
+                        const rowStr = Object.values(row).join(' ').toLowerCase();
+                        if (rowStr.includes('in funnel') || rowStr.includes('progress') || tab === 'In Funnel') repFunnel++;
+                        if (rowStr.includes('converted') || rowStr.includes('won')) repConverted++;
+                        
+                        tabHtml += `<tr>`;
+                        headers.forEach(h => tabHtml += `<td>${row[h] || ''}</td>`);
+                        tabHtml += `</tr>`;
+                        rowsInTab++;
+                    }
+                });
+                tabHtml += `</tbody></table>`;
+            }
+            if(rowsInTab > 0) consolidatedTables += tabHtml;
+        });
+
+        if(repTotal === 0) consolidatedTables = "<p>No leads found for the selected time period.</p>";
+
+        // 2. Populate HTML
+        document.getElementById('print-date-range').textContent = `${selMonth === 'All' ? 'All Time' : monthText} ${selYear === 'All' ? '' : selYear}`;
+        document.getElementById('print-total').textContent = repTotal;
+        document.getElementById('print-funnel').textContent = repFunnel;
+        document.getElementById('print-converted').textContent = repConverted;
+        document.getElementById('print-rate').textContent = repTotal > 0 ? ((repConverted/repTotal)*100).toFixed(1) + '%' : '0%';
+        document.getElementById('print-tables-container').innerHTML = consolidatedTables;
+
+        // 3. Render ChartJS
+        hiddenReport.style.display = 'block'; // Unhide to render charts properly measuring dimensions
+        
+        if (pieChartInstance) pieChartInstance.destroy();
+        if (barChartInstance) barChartInstance.destroy();
+
+        const ctxStatus = document.getElementById('statusChart').getContext('2d');
+        pieChartInstance = new Chart(ctxStatus, {
+            type: 'doughnut',
+            data: {
+                labels: ['Converted', 'In Funnel', 'Lost/Other'],
+                datasets: [{
+                    data: [repConverted, repFunnel, repTotal - repConverted - repFunnel],
+                    backgroundColor: ['#10B981', '#F9A825', '#DC3545']
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+
+        const ctxObj = document.getElementById('categoryChart').getContext('2d');
+        barChartInstance = new Chart(ctxObj, {
+            type: 'bar',
+            data: {
+                labels: Object.keys(tabCounts).filter(k => tabCounts[k] > 0),
+                datasets: [{
+                    label: 'Number of Leads',
+                    data: Object.keys(tabCounts).filter(k => tabCounts[k] > 0).map(k => tabCounts[k]),
+                    backgroundColor: '#1A73E8'
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+
+        // 4. Fire html2pdf
         const opt = {
-            margin:       0.5,
-            filename:     'KlearStack_Sales_Report.pdf',
+            margin:       0.3,
+            filename:     `KlearStack_Report_${selMonth}_${selYear}.pdf`,
             image:        { type: 'jpeg', quality: 0.98 },
-            html2canvas:  { scale: 2 },
-            jsPDF:        { unit: 'in', format: 'letter', orientation: 'landscape' }
+            html2canvas:  { scale: 2, useCORS: true }, // useCORS allows KlearStack logo to load
+            jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
         };
 
-        downloadBtn.style.display = 'none'; 
-        html2pdf().set(opt).from(element).save().then(() => {
-            downloadBtn.style.display = 'block';
-        });
+        // Small delay to let charts finish animation
+        setTimeout(() => {
+            html2pdf().set(opt).from(document.getElementById('print-layout')).save().then(() => {
+                hiddenReport.style.display = 'none';
+                modal.style.display = 'none';
+                generateModal.textContent = "Generate & Download";
+                generateModal.disabled = false;
+            });
+        }, 500);
     });
 });
 
 async function loadAllData() {
     for (const [tabName, gid] of Object.entries(TABS)) {
-        // Use Google Visualization API endpoint to bypass CORS issues for public sheets
         const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&gid=${gid}`;
         try {
             const response = await fetch(url);
             if (!response.ok) throw new Error("Private sheet or failed");
             const csvText = await response.text();
             
-            // Parse CSV with PapaParse
             const result = Papa.parse(csvText, {
                 header: true,
                 skipEmptyLines: true,
             });
-            
             liveData[tabName] = result.data;
         } catch (e) {
             console.error(`Failed to fetch ${tabName}: `, e);

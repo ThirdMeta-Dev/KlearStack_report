@@ -266,6 +266,40 @@ input:checked + .slider:before { transform: translateX(22px); }
     to { opacity: 1; transform: translateY(0); }
 }
 
-.card, .data-table-container, .analysis-section {
+.card, .table-container, .analysis-section {
     animation: fadeIn 0.6s ease-out forwards;
+}
+
+/* Modal Styling */
+.modal-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+    z-index: 999; display: flex; align-items: center; justify-content: center;
+}
+.modal-content {
+    background: #fff; width: 100%; max-width: 400px; padding: 2rem;
+    border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+
+/* Print PDF layout */
+.print-container {
+    padding: 2rem; background: #fff; width: 100%;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+}
+.print-reports-table {
+    width: 100%; border-collapse: collapse; margin-bottom: 2rem;
+}
+.print-reports-table th, .print-reports-table td {
+    border: 1px solid #e2e8f0; padding: 0.75rem; font-size: 0.85rem; text-align: left;
+}
+.print-reports-table th {
+    background-color: #f8fbff; color: #1A73E8; font-weight: 700;
+}
+.print-reports-table tr:nth-child(even) {
+    background-color: #fdfdfd;
+}
+
+/* Ensure html2pdf breaks work correctly */
+.html2pdf__page-break {
+    page-break-after: always !important;
 }
