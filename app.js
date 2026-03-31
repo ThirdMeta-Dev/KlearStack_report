@@ -34,46 +34,71 @@ document.addEventListener('DOMContentLoaded', async () => {
         return false;
     };
 
-    const matchesMonth = (row, monthStr) => {
-        const rowStr = Object.values(row).join(' ').toLowerCase();
-        const monthMap = {
-            'Jan': ['jan', '/01/', '-01-', '01/'], 'Feb': ['feb', '/02/', '-02-', '02/'],
-            'Mar': ['mar', '/03/', '-03-', '03/'], 'Apr': ['apr', '/04/', '-04-', '04/'],
-            'May': ['may', '/05/', '-05-', '05/'], 'Jun': ['jun', '/06/', '-06-', '06/'],
-            'Jul': ['jul', '/07/', '-07-', '07/'], 'Aug': ['aug', '/08/', '-08-', '08/'],
-            'Sep': ['sep', '/09/', '-09-', '09/'], 'Oct': ['oct', '/10/', '-10-', '10/'],
-            'Nov': ['nov', '/11/', '-11-', '11/'], 'Dec': ['dec', '/12/', '-12-', '12/']
-        };
-        return monthMap[monthStr].some(m => rowStr.includes(m));
+    // Strict Date Extraction RegEx
+    const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+    const getPeriodsFromRow = (row) => {
+        const rowPeriods = new Set();
+        Object.values(row).forEach(val => {
+            if(!val) return;
+            const str = String(val);
+            
+            // 1. MMM YYYY or DD MMM YYYY or MMM DD YYYY (e.g., 12 Jan 2024, Jan-24-2024, January 2024)
+            const regex1 = /(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[-/\s,]+(?:[0-3]?[0-9][-/\s,]+)?(202[0-9])/gi;
+            let m1;
+            while((m1 = regex1.exec(str)) !== null) {
+                let mIndex = monthNames.findIndex(mn => mn.toLowerCase() === m1[1].toLowerCase());
+                if(mIndex !== -1) rowPeriods.add(`${monthNames[mIndex]} ${m1[2]}`);
+            }
+
+            // 2. MM/DD/YYYY or M/D/YYYY
+            const regex2 = /(?:^|\D)(0?[1-9]|1[0-2])[-/][0-3]?[0-9][-/](202[0-9])(?:$|\D)/g;
+            let m2;
+            while((m2 = regex2.exec(str)) !== null) {
+                rowPeriods.add(`${monthNames[parseInt(m2[1], 10) - 1]} ${m2[2]}`);
+            }
+
+            // 3. YYYY-MM-DD
+            const regex3 = /(?:^|\D)(202[0-9])[-/](0?[1-9]|1[0-2])[-/][0-3]?[0-9](?:$|\D)/g;
+            let m3;
+            while((m3 = regex3.exec(str)) !== null) {
+                rowPeriods.add(`${monthNames[parseInt(m3[2], 10) - 1]} ${m3[1]}`);
+            }
+
+            // 4. MM/YYYY
+            const regex4 = /(?:^|\D)(0?[1-9]|1[0-2])[-/](202[0-9])(?:$|\D)/g;
+            let m4;
+            while((m4 = regex4.exec(str)) !== null) {
+                rowPeriods.add(`${monthNames[parseInt(m4[1], 10) - 1]} ${m4[2]}`);
+            }
+        });
+        return rowPeriods;
     };
 
-    // Scan for dynamic periods available in exactly this spreadsheet
+    // Scan for dynamic periods available in exactly this spreadsheet using strict extraction
     const populatePeriods = () => {
         const foundPeriods = new Set();
-        const allMonths = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        const allYears = ['2022','2023','2024','2025','2026','2027'];
         
         Object.values(liveData).forEach(tab => {
             tab.forEach(row => {
-                const rowStr = Object.values(row).join(' ').toLowerCase();
-                allYears.forEach(y => {
-                    if (rowStr.includes(y)) {
-                        allMonths.forEach(m => {
-                            if(matchesMonth(row, m)) foundPeriods.add(`${m} ${y}`);
-                        });
-                    }
-                });
+                const periods = getPeriodsFromRow(row);
+                periods.forEach(p => foundPeriods.add(p));
             });
         });
 
-        // Convert to array and sort chronologically roughly
+        // Convert to array and sort chronologically (newest first)
         const periodList = Array.from(foundPeriods).sort((a,b) => {
-            const dateA = new Date(a); const dateB = new Date(b);
-            return dateB - dateA; // newest first
+            const dateA = new Date(`01 ${a}`); 
+            const dateB = new Date(`01 ${b}`);
+            return dateB - dateA; 
         });
 
-        // Inject into dropdowns
+        const periodFilter = document.getElementById('period-filter');
         const modalPeriod = document.getElementById('modal-period');
+        
+        periodFilter.innerHTML = '<option value="All">All Time</option>';
+        modalPeriod.innerHTML = '<option value="All">All Time</option>';
+
         periodList.forEach(p => {
             const opt1 = document.createElement('option');
             opt1.value = p; opt1.textContent = p;
@@ -90,9 +115,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Check specific selected combined period
     const matchesPeriod = (row, periodValue) => {
         if (periodValue === 'All') return true;
-        const [mStr, yStr] = periodValue.split(' ');
-        const rowStr = Object.values(row).join(' ').toLowerCase();
-        return matchesMonth(row, mStr) && rowStr.includes(yStr.toLowerCase());
+        
+        // Strict mapping check: Does this row contain the exact extracted period?
+        const rowPeriods = getPeriodsFromRow(row);
+        return rowPeriods.has(periodValue);
     };
 
     const matchesSearch = (row, query) => {
