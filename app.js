@@ -175,9 +175,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const filteredData = data.filter(item => {
             if (isExcluded(item, currentTab)) return false;
-            const passConverted = filterConverted.checked ? 
-                Object.values(item).join(' ').toLowerCase().includes('converted') || Object.values(item).join(' ').toLowerCase().includes('won') : true;
-            return passConverted && matchesPeriod(item, periodFilter.value) && matchesSearch(item, searchFilter.value) && matchesStatus(item, statusFilter.value);
+            
+            let passConverted = true;
+            let passPeriod = true;
+
+            if (currentTab !== 'In Funnel') {
+                passConverted = filterConverted.checked ? 
+                    Object.values(item).join(' ').toLowerCase().includes('converted') || Object.values(item).join(' ').toLowerCase().includes('won') : true;
+                passPeriod = matchesPeriod(item, periodFilter.value);
+            }
+
+            return passConverted && passPeriod && matchesSearch(item, searchFilter.value) && matchesStatus(item, statusFilter.value);
         });
 
         if (filteredData.length === 0) {
@@ -213,12 +221,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (liveData[tName]) {
                 liveData[tName].forEach(row => {
                     if (isExcluded(row, tName)) return;
-                    const passConverted = filterConverted.checked ? 
-                        Object.values(row).join(' ').toLowerCase().includes('converted') || Object.values(row).join(' ').toLowerCase().includes('won') : true;
+                    
+                    let pConv = true;
+                    let pPer = true;
+                    if (tName !== 'In Funnel') {
+                        pConv = filterConverted.checked ? 
+                            Object.values(row).join(' ').toLowerCase().includes('converted') || Object.values(row).join(' ').toLowerCase().includes('won') : true;
+                        pPer = matchesPeriod(row, periodFilter.value);
+                    }
 
-                    if (passConverted && matchesPeriod(row, periodFilter.value) && matchesSearch(row, searchFilter.value) && matchesStatus(row, statusFilter.value)) {
+                    if (pConv && pPer && matchesSearch(row, searchFilter.value) && matchesStatus(row, statusFilter.value)) {
                         total++;
-                        tabCount++; // increment tab-specific counter
+                        tabCount++;
                         const rowStr = Object.values(row).join(' ').toLowerCase();
                         if (rowStr.includes('in funnel') || rowStr.includes('progress') || tName === 'In Funnel') inFunnel++;
                         if (rowStr.includes('converted') || rowStr.includes('won')) converted++;
@@ -380,6 +394,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Helper to string-safe truncate
         const t = (str, len) => str && str.length > len ? str.substring(0, len) + '...' : (str || '-');
 
+        const hideSlide = (slideId, breakId) => {
+            document.getElementById(slideId).style.display = 'none';
+            if(document.getElementById(breakId)) document.getElementById(breakId).style.display = 'none';
+        };
+        const showSlide = (slideId, breakId) => {
+            document.getElementById(slideId).style.display = 'flex';
+            if(document.getElementById(breakId)) document.getElementById(breakId).style.display = 'block';
+        };
+
         // Slide 2: In Funnel
         const funnelBody = document.querySelector('#slide-table-funnel tbody');
         funnelBody.innerHTML = '';
@@ -387,13 +410,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         if(liveData['In Funnel']) {
             liveData['In Funnel'].forEach(row => {
                 if(isExcluded(row, 'In Funnel')) return;
-                if(matchesPeriod(row, selPeriod) && fCount < 10) { // Limit to 10 to fit on 1 slide
+                if(matchesPeriod(row, selPeriod) && fCount < 10) { 
                     funnelBody.innerHTML += `<tr><td><strong>${t(row['Name'], 40)}</strong></td><td>${t(row['Details'], 80)}</td><td><span class="badge" style="background:#E8F0FE; color:#1A73E8;">${t(row['Status'], 30)}</span></td></tr>`;
                     fCount++;
                 }
             });
         }
-        if(fCount===0) funnelBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">No In Funnel leads matched this period.</td></tr>';
+        if(fCount === 0) hideSlide('slide-page-funnel', 'break-funnel');
+        else showSlide('slide-page-funnel', 'break-funnel');
 
         // Slide 3: Old Leads (Combining both Re-email tabs)
         const oldBody = document.querySelector('#slide-table-old tbody');
@@ -410,7 +434,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             }
         });
-        if(oCount===0) oldBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">No old leads targeted in this period.</td></tr>';
+        if(oCount === 0) hideSlide('slide-page-old', 'break-old');
+        else showSlide('slide-page-old', 'break-old');
 
         // Slide 4: Monthly Status
         const monthlyBody = document.querySelector('#slide-table-monthly tbody');
@@ -425,7 +450,24 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             });
         }
-        if(mCount===0) monthlyBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">No leads found in Monthly Status tab for this period.</td></tr>';
+        if(mCount === 0) hideSlide('slide-page-monthly', 'break-monthly');
+        else showSlide('slide-page-monthly', 'break-monthly');
+
+        // Slide 5: Extra Activities
+        const activitiesText = document.getElementById('modal-activities').value.trim();
+        if (!activitiesText) {
+            hideSlide('slide-page-activities', 'break-activities');
+        } else {
+            showSlide('slide-page-activities', 'break-activities');
+            const ul = document.querySelector('.slide-activities-list');
+            ul.innerHTML = '';
+            activitiesText.split('\n').filter(l => l.trim()).forEach(line => {
+                const parts = line.split('-');
+                const strong = parts[0] ? parts[0].trim() : '';
+                const span = parts[1] ? parts[1].trim() : '';
+                ul.innerHTML += `<li><strong>${strong}</strong>${span ? `<span>${span}</span>` : ''}</li>`;
+            });
+        }
 
         hiddenSlides.style.display = 'block'; 
 
