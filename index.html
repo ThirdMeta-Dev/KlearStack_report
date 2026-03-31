@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KlearStack Sales Insights | Interactive Report</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+    <div class="dashboard-container" id="report-content">
+        <header class="main-header">
+            <div class="logo">
+                <span class="ks-blue">Klear</span><span class="ks-dark">Stack</span>
+            </div>
+            <div class="header-actions">
+                <button id="download-pdf" class="btn-primary">Download PDF Report</button>
+            </div>
+        </header>
+
+        <section class="summary-cards">
+            <div class="card metric">
+                <h3>Total Leads</h3>
+                <div class="value" id="total-leads">0</div>
+            </div>
+            <div class="card metric highlight">
+                <h3>In Funnel</h3>
+                <div class="value" id="in-funnel">0</div>
+            </div>
+            <div class="card metric success">
+                <h3>Converted</h3>
+                <div class="value" id="converted">0</div>
+            </div>
+            <div class="card metric warning">
+                <h3>Conversion Rate</h3>
+                <div class="value" id="conversion-rate">0%</div>
+            </div>
+        </section>
+
+        <main class="content-grid">
+            <aside class="sidebar">
+                <nav class="nav-menu">
+                    <h3>REPORT SECTIONS</h3>
+                    <ul>
+                        <li><button class="nav-link active" data-tab="In Funnel">In Funnel</button></li>
+                        <li><button class="nav-link" data-tab="Re-emails (Nov-Jan)">Re-emails (Nov-Jan)</button></li>
+                        <li><button class="nav-link" data-tab="Closed Lost">Closed Lost</button></li>
+                        <li><button class="nav-link" data-tab="Monthly Status">Monthly Status</button></li>
+                    </ul>
+                </nav>
+                <div class="filter-group">
+                    <h3>QUICK FILTERS</h3>
+                    <div class="toggle-container">
+                        <span>Show Converted Only</span>
+                        <label class="switch">
+                            <input type="checkbox" id="filter-converted">
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+                </div>
+            </aside>
+
+            <section class="data-table-container">
+                <div class="table-header">
+                    <h2 id="current-tab-title">In Funnel</h2>
+                    <p id="tab-description">List of prospects currently being engaged or recently pitched.</p>
+                </div>
+                <div class="table-responsive">
+                    <table id="leads-table">
+                        <thead>
+                            <tr id="table-head">
+                                <!-- Dynamic Headers -->
+                            </tr>
+                        </thead>
+                        <tbody id="table-body">
+                            <!-- Dynamic Content -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+
+        <section class="analysis-section">
+            <div class="analysis-card">
+                <h2>Conversion Insights (Why?)</h2>
+                <div class="insights-grid">
+                    <div class="insight">
+                        <h4 class="success">Why Converted?</h4>
+                        <ul id="why-converted">
+                            <li>Strong sandbox engagement</li>
+                            <li>Prompt responsive to PPT decks</li>
+                            <li>Clear alignment on whitelabeling reqs</li>
+                        </ul>
+                    </div>
+                    <div class="insight">
+                        <h4 class="danger">Why Not Converted?</h4>
+                        <ul id="why-not">
+                            <li>Budget constraints</li>
+                            <li>No response after sandbox access</li>
+                            <li>Internal priority shifts</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>
