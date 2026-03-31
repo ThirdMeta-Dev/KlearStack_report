@@ -196,66 +196,63 @@ KlearStack Homepage Revamp - Content, visual style, and UI enhancements</textare
         <div id="presentation-layout">
             
             <!-- SLIDE 1: Title -->
-            <div class="slide-page" id="slide-page-title" style="display: flex; flex-direction: column; justify-content: center; align-items: center; background: linear-gradient(135deg, #0A2540 0%, #1A73E8 100%);">
+            <div class="slide-page" id="slide-page-title" style="display: flex; flex-direction: column; justify-content: center; align-items: center; background: linear-gradient(135deg, #012C59 0%, #00A3FF 100%);">
                 <img src="https://klearstack.com/wp-content/uploads/2021/04/klearstack-logo-1.png" alt="KlearStack" style="max-width: 400px; filter: brightness(0) invert(1); margin-bottom: 4rem;">
-                <h1 style="color: white; font-size: 5rem; margin-bottom: 1rem; text-align: center;">Monthly Sales Report</h1>
-                <h2 id="slide-title-date" style="color: #F9A825; font-size: 3rem; font-weight: 500;">All Time</h2>
+                <h1 style="color: white; font-size: 5rem; margin-bottom: 1rem; text-align: center;">Sales Pipeline Overview</h1>
+                <h2 id="slide-title-date" style="color: #F4F7F9; font-size: 3rem; font-weight: 400; opacity: 0.9;">All Time</h2>
             </div>
             
             <div class="html2pdf__page-break" id="break-funnel"></div>
 
-            <!-- SLIDE 2: In Funnel -->
-            <div class="slide-page" id="slide-page-funnel">
+            <!-- SLIDE 2: In Funnel Metrics -->
+            <div class="slide-page" id="slide-page-funnel" style="background: #F4F7F9;">
                 <div class="slide-header">
-                    <h2>In Funnel Leads</h2>
+                    <h2>In Funnel Target Pipeline</h2>
                     <img src="https://klearstack.com/wp-content/uploads/2021/04/klearstack-logo-1.png" alt="Logo">
                 </div>
-                <div class="slide-content">
-                    <table class="slide-table" id="slide-table-funnel">
-                        <thead><tr><th>Name</th><th>Details</th><th>Status</th></tr></thead>
-                        <tbody></tbody>
-                    </table>
+                <div class="slide-content" style="display: flex; flex-direction: column; justify-content: center; height: 100%;">
+                    <div class="slide-metric-grid" id="slide-grid-funnel">
+                        <!-- Huge cards populated here -->
+                    </div>
                 </div>
             </div>
             
             <div class="html2pdf__page-break" id="break-old"></div>
 
-            <!-- SLIDE 3: Old Leads -->
-            <div class="slide-page" id="slide-page-old">
+            <!-- SLIDE 3: Old Leads Status Grid -->
+            <div class="slide-page" id="slide-page-old" style="background: #F4F7F9;">
                 <div class="slide-header">
-                    <h2>Old Leads Targeting & Status</h2>
+                    <h2>Re-Engaged Pipeline Status</h2>
                     <img src="https://klearstack.com/wp-content/uploads/2021/04/klearstack-logo-1.png" alt="Logo">
                 </div>
                 <div class="slide-content">
-                    <table class="slide-table" id="slide-table-old">
-                        <thead><tr><th>Name</th><th>Status</th><th>Updated Status</th></tr></thead>
-                        <tbody></tbody>
-                    </table>
+                    <div class="slide-status-grid" id="slide-grid-old">
+                        <!-- Status counts populated here -->
+                    </div>
                 </div>
             </div>
 
             <div class="html2pdf__page-break" id="break-monthly"></div>
 
-            <!-- SLIDE 4: Monthly Status -->
-            <div class="slide-page" id="slide-page-monthly">
+            <!-- SLIDE 4: Monthly Status Grid -->
+            <div class="slide-page" id="slide-page-monthly" style="background: #F4F7F9;">
                 <div class="slide-header">
                     <h2 id="slide-monthly-title">Monthly Leads Status</h2>
                     <img src="https://klearstack.com/wp-content/uploads/2021/04/klearstack-logo-1.png" alt="Logo">
                 </div>
                 <div class="slide-content">
-                    <table class="slide-table" id="slide-table-monthly">
-                        <thead><tr><th>Source</th><th>Name</th><th>Status</th></tr></thead>
-                        <tbody></tbody>
-                    </table>
+                    <div class="slide-status-grid" id="slide-grid-monthly">
+                        <!-- Status counts populated here -->
+                    </div>
                 </div>
             </div>
 
             <div class="html2pdf__page-break" id="break-activities"></div>
 
             <!-- SLIDE 5: Extra Activities -->
-            <div class="slide-page" id="slide-page-activities">
+            <div class="slide-page" id="slide-page-activities" style="background: #FFFFFF;">
                 <div class="slide-header">
-                    <h2>Extra Activities Planned & Ongoing Execution</h2>
+                    <h2>Planned & Executing Activities</h2>
                     <img src="https://klearstack.com/wp-content/uploads/2021/04/klearstack-logo-1.png" alt="Logo">
                 </div>
                 <div class="slide-content" style="display: flex; flex-direction: column; justify-content: center; height: 100%;">

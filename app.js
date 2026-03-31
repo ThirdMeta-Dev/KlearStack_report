@@ -403,53 +403,74 @@ document.addEventListener('DOMContentLoaded', async () => {
             if(document.getElementById(breakId)) document.getElementById(breakId).style.display = 'block';
         };
 
-        // Slide 2: In Funnel
-        const funnelBody = document.querySelector('#slide-table-funnel tbody');
-        funnelBody.innerHTML = '';
-        let fCount = 0;
-        if(liveData['In Funnel']) {
-            liveData['In Funnel'].forEach(row => {
-                if(isExcluded(row, 'In Funnel')) return;
-                if(matchesPeriod(row, selPeriod) && fCount < 10) { 
-                    funnelBody.innerHTML += `<tr><td><strong>${t(row['Name'], 40)}</strong></td><td>${t(row['Details'], 80)}</td><td><span class="badge" style="background:#E8F0FE; color:#1A73E8;">${t(row['Status'], 30)}</span></td></tr>`;
-                    fCount++;
+        // Slide 2: Pipeline Summary Cards
+        let totalL = 0, funnelL = 0, convL = 0;
+        Object.keys(liveData).forEach(tab => {
+            liveData[tab].forEach(row => {
+                if (isExcluded(row, tab)) return;
+                if (matchesPeriod(row, selPeriod)) {
+                    totalL++;
+                    const rowStr = Object.values(row).join(' ').toLowerCase();
+                    if (rowStr.includes('in funnel') || rowStr.includes('progress') || tab === 'In Funnel') funnelL++;
+                    if (rowStr.includes('converted') || rowStr.includes('won')) convL++;
                 }
             });
-        }
-        if(fCount === 0) hideSlide('slide-page-funnel', 'break-funnel');
+        });
+        const winR = totalL > 0 ? ((convL/totalL)*100).toFixed(1) : '0';
+
+        const funnelGrid = document.getElementById('slide-grid-funnel');
+        funnelGrid.innerHTML = `
+            <div class="slide-huge-card"><h3>Total Evaluated</h3><p>${totalL}</p></div>
+            <div class="slide-huge-card accent"><h3>Current In-Funnel</h3><p>${funnelL}</p></div>
+            <div class="slide-huge-card accent"><h3>Closed Converted</h3><p>${convL}</p></div>
+            <div class="slide-huge-card"><h3>Win Rate</h3><p>${winR}%</p></div>
+        `;
+        if(totalL === 0) hideSlide('slide-page-funnel', 'break-funnel');
         else showSlide('slide-page-funnel', 'break-funnel');
 
-        // Slide 3: Old Leads (Combining both Re-email tabs)
-        const oldBody = document.querySelector('#slide-table-old tbody');
-        oldBody.innerHTML = '';
+        // Slide 3: Old Leads Status Grid
+        const oldGrid = document.getElementById('slide-grid-old');
+        oldGrid.innerHTML = '';
+        const oldStatusMap = {};
         let oCount = 0;
         ['Re-emails (Nov-Jan)', 'Re-emails (Before Nov)'].forEach(tab => {
             if(liveData[tab]) {
                 liveData[tab].forEach(row => {
                     if(isExcluded(row, tab)) return;
-                    if(matchesPeriod(row, selPeriod) && oCount < 10) {
-                        oldBody.innerHTML += `<tr><td><strong>${t(row['Name'], 40)}</strong></td><td>${t(row['Status'], 40)}</td><td>${t(row['Updated status'], 40)}</td></tr>`;
+                    if(matchesPeriod(row, selPeriod)) {
+                        const st = row['Status'] || row['Updated status'] || 'Pending';
+                        const niceSt = t(st, 35);
+                        oldStatusMap[niceSt] = (oldStatusMap[niceSt] || 0) + 1;
                         oCount++;
                     }
                 });
             }
         });
+        Object.keys(oldStatusMap).sort((a,b)=>oldStatusMap[b]-oldStatusMap[a]).slice(0, 9).forEach(k => {
+            oldGrid.innerHTML += `<div class="slide-status-card"><h4>${k}</h4><p>${oldStatusMap[k]}</p></div>`;
+        });
         if(oCount === 0) hideSlide('slide-page-old', 'break-old');
         else showSlide('slide-page-old', 'break-old');
 
-        // Slide 4: Monthly Status
-        const monthlyBody = document.querySelector('#slide-table-monthly tbody');
-        monthlyBody.innerHTML = '';
+        // Slide 4: Monthly Status Grid
+        const monthlyGrid = document.getElementById('slide-grid-monthly');
+        monthlyGrid.innerHTML = '';
+        const mStatusMap = {};
         let mCount = 0;
         if(liveData['Monthly Status']) {
             liveData['Monthly Status'].forEach(row => {
                 if(isExcluded(row, 'Monthly Status')) return;
-                if(matchesPeriod(row, selPeriod) && mCount < 10) {
-                    monthlyBody.innerHTML += `<tr><td>${t(row['Source'], 30)}</td><td><strong>${t(row['Name'], 40)}</strong></td><td><span class="badge" style="background:#E8F0FE; color:#1A73E8;">${t(row['Status'], 40)}</span></td></tr>`;
+                if(matchesPeriod(row, selPeriod)) {
+                    const st = row['Status'] || 'Pending';
+                    const niceSt = t(st, 35);
+                    mStatusMap[niceSt] = (mStatusMap[niceSt] || 0) + 1;
                     mCount++;
                 }
             });
         }
+        Object.keys(mStatusMap).sort((a,b)=>mStatusMap[b]-mStatusMap[a]).slice(0, 9).forEach(k => {
+            monthlyGrid.innerHTML += `<div class="slide-status-card"><h4>${k}</h4><p>${mStatusMap[k]}</p></div>`;
+        });
         if(mCount === 0) hideSlide('slide-page-monthly', 'break-monthly');
         else showSlide('slide-page-monthly', 'break-monthly');
 
