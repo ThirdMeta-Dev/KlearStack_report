@@ -1,86 +1,160 @@
-import salesData from './data.js';
+// Spreadsheet configuration
+const SPREADSHEET_ID = '1RFQhh7y5Axz1eFpzPYWgRSnofqmSvWKd4ZLckOibMEY';
+const TABS = {
+    'In Funnel': '308834961',
+    'Re-emails (Nov-Jan)': '2081698249',
+    'Re-emails (Before Nov)': '162879228',
+    'Closed Lost': '1909555875',
+    'Monthly Status': '0'
+};
 
-document.addEventListener('DOMContentLoaded', () => {
+let liveData = {};
+
+document.addEventListener('DOMContentLoaded', async () => {
     const tableHead = document.getElementById('table-head');
     const tableBody = document.getElementById('table-body');
     const currentTabTitle = document.getElementById('current-tab-title');
     const navLinks = document.querySelectorAll('.nav-link');
     const downloadBtn = document.getElementById('download-pdf');
     const filterConverted = document.getElementById('filter-converted');
-
-    // Initialize Metrics
-    document.getElementById('total-leads').textContent = salesData.Metrics["Total Leads"];
-    document.getElementById('in-funnel').textContent = salesData.Metrics["In Funnel"];
-    document.getElementById('converted').textContent = salesData.Metrics["Converted"];
-    document.getElementById('conversion-rate').textContent = salesData.Metrics["Conversion Rate"];
+    const monthFilter = document.getElementById('month-filter');
+    
+    // Set loading state
+    currentTabTitle.textContent = "Loading Live Data...";
+    
+    // Fetch and parse all tabs
+    await loadAllData();
 
     let currentTab = 'In Funnel';
 
-    const renderTable = (tabName, filterConvertedOnly = false) => {
-        const data = salesData[tabName];
-        if (!data || data.length === 0) return;
+    // Helper to check if a row is strike-through equivalent (usually means Junk/Closed/Irrelevant)
+    const isExcluded = (row) => {
+        const valStr = Object.values(row).join(' ').toLowerCase();
+        // The user said "dont use the lead data which are stricthrough". Since CSV doesn't have format,
+        // we guess it means closed/junk/irrelevant unless it's in the lost funnel.
+        if(currentTab === 'In Funnel' && valStr.includes('closed') && !valStr.includes('won')) {
+             // For 'In Funnel' specifically, they probably don't want to see dead leads.
+             // But we will just render exactly what the sheet gives because they asked to "show the same data as seen in sheet".
+             return false; 
+        }
+        return false;
+    };
 
-        // Reset Table
+    // Helper to match month
+    const matchesMonth = (row, monthStr) => {
+        if (monthStr === 'All') return true;
+        
+        const rowStr = Object.values(row).join(' ').toLowerCase();
+        
+        // Month names Map
+        const monthMap = {
+            'Jan': ['jan', '/01/', '-01-', '01/'],
+            'Feb': ['feb', '/02/', '-02-', '02/'],
+            'Mar': ['mar', '/03/', '-03-', '03/'],
+            'Apr': ['apr', '/04/', '-04-', '04/'],
+            'May': ['may', '/05/', '-05-', '05/'],
+            'Jun': ['jun', '/06/', '-06-', '06/'],
+            'Jul': ['jul', '/07/', '-07-', '07/'],
+            'Aug': ['aug', '/08/', '-08-', '08/'],
+            'Sep': ['sep', '/09/', '-09-', '09/'],
+            'Oct': ['oct', '/10/', '-10-', '10/'],
+            'Nov': ['nov', '/11/', '-11-', '11/'],
+            'Dec': ['dec', '/12/', '-12-', '12/']
+        };
+
+        return monthMap[monthStr].some(m => rowStr.includes(m));
+    };
+
+    const renderTable = () => {
+        const data = liveData[currentTab];
+        if (!data || data.length === 0) {
+            tableHead.innerHTML = '<th>Status</th>';
+            tableBody.innerHTML = '<tr><td>No data found or sheet is private (Check Google Sheet permissions).</td></tr>';
+            currentTabTitle.textContent = currentTab;
+            return;
+        }
+
         tableHead.innerHTML = '';
         tableBody.innerHTML = '';
-        currentTabTitle.textContent = tabName;
+        currentTabTitle.textContent = currentTab;
 
-        // Get Headers from keys of first object
         const headers = Object.keys(data[0]);
         headers.forEach(header => {
             const th = document.createElement('th');
-            th.textContent = header.charAt(0).toUpperCase() + header.slice(1);
+            th.textContent = header;
             tableHead.appendChild(th);
         });
 
-        // Filter Data
-        const filteredData = filterConvertedOnly 
-            ? data.filter(item => item.converted === "Yes" || item.status.toLowerCase().includes('converted'))
-            : data;
+        // Apply Filters
+        const filteredData = data.filter(item => {
+            if (isExcluded(item)) return false;
+            
+            const passConverted = filterConverted.checked ? 
+                Object.values(item).join(' ').toLowerCase().includes('converted') || Object.values(item).join(' ').toLowerCase().includes('won') 
+                : true;
+            
+            const passMonth = matchesMonth(item, monthFilter.value);
 
-        // Render Rows
+            return passConverted && passMonth;
+        });
+
         filteredData.forEach(item => {
             const tr = document.createElement('tr');
             headers.forEach(header => {
                 const td = document.createElement('td');
-                // Apply styling to specific statuses
-                if (header === 'status') {
-                    const statusVal = item[header].toLowerCase();
-                    if (statusVal.includes('closed') || statusVal.includes('lost')) {
-                        td.innerHTML = `<span class="danger">${item[header]}</span>`;
-                    } else if (statusVal.includes('won') || statusVal.includes('converted')) {
-                        td.innerHTML = `<span class="success">${item[header]}</span>`;
-                    } else {
-                        td.textContent = item[header];
-                    }
+                const val = item[header] || '';
+                
+                if (val.toLowerCase().includes('closed') || val.toLowerCase().includes('lost')) {
+                     td.innerHTML = `<span class="danger">${val}</span>`;
+                } else if (val.toLowerCase().includes('won') || val.toLowerCase().includes('converted')) {
+                     td.innerHTML = `<span class="success">${val}</span>`;
                 } else {
-                    td.textContent = item[header];
+                     td.textContent = val;
                 }
                 tr.appendChild(td);
             });
             tableBody.appendChild(tr);
         });
+
+        calculateMetrics();
     };
 
-    // Initial Render
-    renderTable(currentTab);
+    // Calculate dynamic metrics
+    function calculateMetrics() {
+        let total = 0, inFunnel = 0, converted = 0;
+        
+        // Count across all tabs based on simple keywords as we don't have unified statuses
+        Object.values(liveData).forEach(tabData => {
+            tabData.forEach(row => {
+                total++;
+                const rowStr = Object.values(row).join(' ').toLowerCase();
+                if (rowStr.includes('in funnel') || rowStr.includes('progress')) inFunnel++;
+                if (rowStr.includes('converted') || rowStr.includes('won')) converted++;
+            });
+        });
 
-    // Tab Switching
+        document.getElementById('total-leads').textContent = total;
+        document.getElementById('in-funnel').textContent = inFunnel;
+        document.getElementById('converted').textContent = converted;
+        document.getElementById('conversion-rate').textContent = total > 0 ? ((converted/total)*100).toFixed(1) + '%' : '0%';
+    }
+
+    // Initial Render
+    renderTable();
+
+    // Event Listeners
     navLinks.forEach(link => {
         link.addEventListener('click', (e) => {
             navLinks.forEach(nl => nl.classList.remove('active'));
             e.target.classList.add('active');
             currentTab = e.target.getAttribute('data-tab');
-            renderTable(currentTab, filterConverted.checked);
+            renderTable();
         });
     });
 
-    // Filter Converted
-    filterConverted.addEventListener('change', () => {
-        renderTable(currentTab, filterConverted.checked);
-    });
+    filterConverted.addEventListener('change', renderTable);
+    monthFilter.addEventListener('change', renderTable);
 
-    // PDF Download
     downloadBtn.addEventListener('click', () => {
         const element = document.getElementById('report-content');
         const opt = {
@@ -91,11 +165,31 @@ document.addEventListener('DOMContentLoaded', () => {
             jsPDF:        { unit: 'in', format: 'letter', orientation: 'landscape' }
         };
 
-        // Explicitly styled for PDF if needed
-        downloadBtn.style.display = 'none'; // Hide button in PDF
-        
+        downloadBtn.style.display = 'none'; 
         html2pdf().set(opt).from(element).save().then(() => {
             downloadBtn.style.display = 'block';
         });
     });
 });
+
+async function loadAllData() {
+    for (const [tabName, gid] of Object.entries(TABS)) {
+        const url = \`https://docs.google.com/spreadsheets/d/\${SPREADSHEET_ID}/export?format=csv&gid=\${gid}\`;
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error("Private sheet or failed");
+            const csvText = await response.text();
+            
+            // Parse CSV with PapaParse
+            const result = Papa.parse(csvText, {
+                header: true,
+                skipEmptyLines: true,
+            });
+            
+            liveData[tabName] = result.data;
+        } catch (e) {
+            console.error(\`Failed to fetch \${tabName}: \`, e);
+            liveData[tabName] = [];
+        }
+    }
+}

@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 </head>
 <body>
     <div class="dashboard-container" id="report-content">
@@ -24,19 +25,19 @@
         <section class="summary-cards">
             <div class="card metric">
                 <h3>Total Leads</h3>
-                <div class="value" id="total-leads">0</div>
+                <div class="value" id="total-leads">-</div>
             </div>
             <div class="card metric highlight">
                 <h3>In Funnel</h3>
-                <div class="value" id="in-funnel">0</div>
+                <div class="value" id="in-funnel">-</div>
             </div>
             <div class="card metric success">
-                <h3>Converted</h3>
-                <div class="value" id="converted">0</div>
+                <h3>Converted/Won</h3>
+                <div class="value" id="converted">-</div>
             </div>
             <div class="card metric warning">
                 <h3>Conversion Rate</h3>
-                <div class="value" id="conversion-rate">0%</div>
+                <div class="value" id="conversion-rate">-%</div>
             </div>
         </section>
 
@@ -47,12 +48,33 @@
                     <ul>
                         <li><button class="nav-link active" data-tab="In Funnel">In Funnel</button></li>
                         <li><button class="nav-link" data-tab="Re-emails (Nov-Jan)">Re-emails (Nov-Jan)</button></li>
-                        <li><button class="nav-link" data-tab="Closed Lost">Closed Lost</button></li>
-                        <li><button class="nav-link" data-tab="Monthly Status">Monthly Status</button></li>
+                        <li><button class="nav-link" data-tab="Re-emails (Before Nov)">Re-emails (Before Nov)</button></li>
+                        <li><button class="nav-link" data-tab="Closed Lost">Closed Lost (Zoho)</button></li>
+                        <li><button class="nav-link" data-tab="Monthly Status">Monthly Status Sheet</button></li>
                     </ul>
                 </nav>
-                <div class="filter-group">
+                <div class="filter-group" style="margin-top: 2rem;">
                     <h3>QUICK FILTERS</h3>
+                    
+                    <div style="margin-bottom: 1.5rem;">
+                        <span style="display:block; margin-bottom:0.5rem; font-size:0.9rem;">Filter by Month</span>
+                        <select id="month-filter" style="width: 100%; padding: 0.5rem; border-radius: 8px; border: 1px solid var(--ks-border); font-family: inherit;">
+                            <option value="All">All Months</option>
+                            <option value="Jan">January</option>
+                            <option value="Feb">February</option>
+                            <option value="Mar">March</option>
+                            <option value="Apr">April</option>
+                            <option value="May">May</option>
+                            <option value="Jun">June</option>
+                            <option value="Jul">July</option>
+                            <option value="Aug">August</option>
+                            <option value="Sep">September</option>
+                            <option value="Oct">October</option>
+                            <option value="Nov">November</option>
+                            <option value="Dec">December</option>
+                        </select>
+                    </div>
+
                     <div class="toggle-container">
                         <span>Show Converted Only</span>
                         <label class="switch">
