@@ -258,9 +258,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const downloadBtn = document.getElementById('download-pdf');
     const modal = document.getElementById('report-modal');
     const cancelModal = document.getElementById('modal-cancel');
-    const generateModal = document.getElementById('modal-generate');
+    const generateExecBtn = document.getElementById('modal-generate');
+    const generateSlidesBtn = document.getElementById('modal-generate-slides');
     const modalPeriod = document.getElementById('modal-period');
+    
+    // Containers
     const hiddenReport = document.getElementById('hidden-report-container');
+    const hiddenSlides = document.getElementById('hidden-presentation-container');
 
     downloadBtn.addEventListener('click', () => {
         modal.style.display = 'flex';
@@ -268,21 +272,36 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     cancelModal.addEventListener('click', () => {
         modal.style.display = 'none';
+        hiddenReport.style.display = 'none';
+        hiddenSlides.style.display = 'none';
     });
 
-    generateModal.addEventListener('click', async () => {
-        generateModal.textContent = "Generating...";
-        generateModal.disabled = true;
+    const lockButtons = (text) => {
+        generateExecBtn.textContent = text;
+        generateSlidesBtn.textContent = text;
+        generateExecBtn.disabled = true;
+        generateSlidesBtn.disabled = true;
+    }
 
+    const unlockButtons = () => {
+        generateExecBtn.textContent = 'Executive 1-Pager';
+        generateSlidesBtn.textContent = 'Monthly Slide Deck';
+        generateExecBtn.disabled = false;
+        generateSlidesBtn.disabled = false;
+    }
+
+    // 1-Pager Logic
+    generateExecBtn.addEventListener('click', async () => {
+        lockButtons("Generating...");
         const selPeriod = modalPeriod.value;
+        const selPeriodText = modalPeriod.options[modalPeriod.selectedIndex].text;
         
-        // Compute Metrics for Report
+        // Compute Metrics
         let repTotal = 0, repFunnel = 0, repConverted = 0;
         let tabCounts = {}; Object.keys(TABS).forEach(t => tabCounts[t] = 0);
 
         Object.keys(liveData).forEach(tab => {
-            const data = liveData[tab];
-            data.forEach(row => {
+            liveData[tab].forEach(row => {
                 if (isExcluded(row, tab)) return;
                 if (matchesPeriod(row, selPeriod)) {
                     repTotal++;
@@ -294,14 +313,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         });
 
-        // Populate HTML (Removed massive data tables entirely)
-        document.getElementById('print-date-range').textContent = selPeriod === 'All' ? 'All Time' : selPeriod;
+        document.getElementById('print-date-range').textContent = selPeriodText;
         document.getElementById('print-total').textContent = repTotal;
         document.getElementById('print-funnel').textContent = repFunnel;
         document.getElementById('print-converted').textContent = repConverted;
         document.getElementById('print-rate').textContent = repTotal > 0 ? ((repConverted/repTotal)*100).toFixed(1) + '%' : '0%';
 
-        // Render ChartJS
         hiddenReport.style.display = 'block'; 
         
         if (pieChartInstance) pieChartInstance.destroy();
@@ -334,24 +351,99 @@ document.addEventListener('DOMContentLoaded', async () => {
             options: { responsive: true, maintainAspectRatio: false }
         });
 
-        // Fire html2pdf precisely on portrait A4 without page breaks
         const opt = {
             margin:       0,
-            filename:     `KlearStack_Executive_Report_${selPeriod.replace(' ', '_')}.pdf`,
+            filename:     `KlearStack_Executive_${selPeriod.replace(' ', '_')}.pdf`,
             image:        { type: 'jpeg', quality: 1 },
             html2canvas:  { scale: 2, useCORS: true, letterRendering: true }, 
             jsPDF:        { unit: 'px', format: [800, 1100], orientation: 'portrait' } 
         };
 
-        // Delay to let charts finish animation, then save perfect 1 pager
         setTimeout(() => {
             html2pdf().set(opt).from(document.getElementById('print-layout')).save().then(() => {
                 hiddenReport.style.display = 'none';
                 modal.style.display = 'none';
-                generateModal.textContent = "Generate Report";
-                generateModal.disabled = false;
+                unlockButtons();
             });
         }, 600);
+    });
+
+    // Monthly Slide Deck Logic
+    generateSlidesBtn.addEventListener('click', async () => {
+        lockButtons("Compiling Slides...");
+        const selPeriod = modalPeriod.value;
+        const selPeriodText = modalPeriod.options[modalPeriod.selectedIndex].text;
+        
+        document.getElementById('slide-title-date').textContent = selPeriodText;
+        document.getElementById('slide-monthly-title').textContent = `Leads Status for ${selPeriodText}`;
+
+        // Helper to string-safe truncate
+        const t = (str, len) => str && str.length > len ? str.substring(0, len) + '...' : (str || '-');
+
+        // Slide 2: In Funnel
+        const funnelBody = document.querySelector('#slide-table-funnel tbody');
+        funnelBody.innerHTML = '';
+        let fCount = 0;
+        if(liveData['In Funnel']) {
+            liveData['In Funnel'].forEach(row => {
+                if(isExcluded(row, 'In Funnel')) return;
+                if(matchesPeriod(row, selPeriod) && fCount < 10) { // Limit to 10 to fit on 1 slide
+                    funnelBody.innerHTML += `<tr><td><strong>${t(row['Name'], 40)}</strong></td><td>${t(row['Details'], 80)}</td><td><span class="badge" style="background:#E8F0FE; color:#1A73E8;">${t(row['Status'], 30)}</span></td></tr>`;
+                    fCount++;
+                }
+            });
+        }
+        if(fCount===0) funnelBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">No In Funnel leads matched this period.</td></tr>';
+
+        // Slide 3: Old Leads (Combining both Re-email tabs)
+        const oldBody = document.querySelector('#slide-table-old tbody');
+        oldBody.innerHTML = '';
+        let oCount = 0;
+        ['Re-emails (Nov-Jan)', 'Re-emails (Before Nov)'].forEach(tab => {
+            if(liveData[tab]) {
+                liveData[tab].forEach(row => {
+                    if(isExcluded(row, tab)) return;
+                    if(matchesPeriod(row, selPeriod) && oCount < 10) {
+                        oldBody.innerHTML += `<tr><td><strong>${t(row['Name'], 40)}</strong></td><td>${t(row['Status'], 40)}</td><td>${t(row['Updated status'], 40)}</td></tr>`;
+                        oCount++;
+                    }
+                });
+            }
+        });
+        if(oCount===0) oldBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">No old leads targeted in this period.</td></tr>';
+
+        // Slide 4: Monthly Status
+        const monthlyBody = document.querySelector('#slide-table-monthly tbody');
+        monthlyBody.innerHTML = '';
+        let mCount = 0;
+        if(liveData['Monthly Status']) {
+            liveData['Monthly Status'].forEach(row => {
+                if(isExcluded(row, 'Monthly Status')) return;
+                if(matchesPeriod(row, selPeriod) && mCount < 10) {
+                    monthlyBody.innerHTML += `<tr><td>${t(row['Source'], 30)}</td><td><strong>${t(row['Name'], 40)}</strong></td><td><span class="badge" style="background:#E8F0FE; color:#1A73E8;">${t(row['Status'], 40)}</span></td></tr>`;
+                    mCount++;
+                }
+            });
+        }
+        if(mCount===0) monthlyBody.innerHTML = '<tr><td colspan="3" style="text-align:center;">No leads found in Monthly Status tab for this period.</td></tr>';
+
+        hiddenSlides.style.display = 'block'; 
+
+        const opt = {
+            margin:       0,
+            filename:     `KlearStack_Monthly_Presentation_${selPeriod.replace(' ', '_')}.pdf`,
+            image:        { type: 'jpeg', quality: 1 },
+            html2canvas:  { scale: 2, useCORS: true, letterRendering: true }, 
+            jsPDF:        { unit: 'px', format: [1600, 900], orientation: 'landscape' } 
+        };
+
+        setTimeout(() => {
+            html2pdf().set(opt).from(document.getElementById('presentation-layout')).save().then(() => {
+                hiddenSlides.style.display = 'none';
+                modal.style.display = 'none';
+                unlockButtons();
+            });
+        }, 500);
     });
 });
 
