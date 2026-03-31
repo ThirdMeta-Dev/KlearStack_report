@@ -119,17 +119,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         calculateMetrics();
     };
 
-    // Calculate dynamic metrics
+    // Calculate dynamic metrics based on active filters
     function calculateMetrics() {
         let total = 0, inFunnel = 0, converted = 0;
         
-        // Count across all tabs based on simple keywords as we don't have unified statuses
+        // Count across all tabs based on simple keywords as we don't have unified statuses,
+        // but APPLY the current active filters to the global count so metrics update properly!
         Object.values(liveData).forEach(tabData => {
             tabData.forEach(row => {
-                total++;
-                const rowStr = Object.values(row).join(' ').toLowerCase();
-                if (rowStr.includes('in funnel') || rowStr.includes('progress')) inFunnel++;
-                if (rowStr.includes('converted') || rowStr.includes('won')) converted++;
+                // Apply global excludes
+                if (isExcluded(row)) return;
+
+                // Apply active toggles
+                const passConverted = filterConverted.checked ? 
+                    Object.values(row).join(' ').toLowerCase().includes('converted') || Object.values(row).join(' ').toLowerCase().includes('won') 
+                    : true;
+                
+                // Apply active month filter
+                const passMonth = matchesMonth(row, monthFilter.value);
+
+                if (passConverted && passMonth) {
+                    total++;
+                    const rowStr = Object.values(row).join(' ').toLowerCase();
+                    if (rowStr.includes('in funnel') || rowStr.includes('progress')) inFunnel++;
+                    if (rowStr.includes('converted') || rowStr.includes('won')) converted++;
+                }
             });
         });
 
