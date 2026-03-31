@@ -75,18 +75,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         return rowPeriods;
     };
 
+    const statusFilter = document.getElementById('status-filter');
+
     // Scan for dynamic periods available in exactly this spreadsheet using strict extraction
-    const populatePeriods = () => {
+    const populateFilters = () => {
         const foundPeriods = new Set();
+        const foundStatuses = new Set();
+        const now = new Date();
         
         Object.values(liveData).forEach(tab => {
             tab.forEach(row => {
+                // Periods
                 const periods = getPeriodsFromRow(row);
-                periods.forEach(p => foundPeriods.add(p));
+                periods.forEach(p => {
+                    const parsed = new Date(`01 ${p}`);
+                    // Ensure dates are <= Current Date, and >= 2022
+                    if (parsed <= now && parsed.getFullYear() >= 2022) {
+                        foundPeriods.add(p);
+                    }
+                });
+
+                // Statuses
+                if (row['Status'] && row['Status'].trim() !== '') {
+                    foundStatuses.add(row['Status'].trim());
+                }
             });
         });
 
-        // Convert to array and sort chronologically (newest first)
+        // Populate Periods
         const periodList = Array.from(foundPeriods).sort((a,b) => {
             const dateA = new Date(`01 ${a}`); 
             const dateB = new Date(`01 ${b}`);
@@ -108,17 +124,27 @@ document.addEventListener('DOMContentLoaded', async () => {
             opt2.value = p; opt2.textContent = p;
             modalPeriod.appendChild(opt2);
         });
+
+        // Populate Statuses
+        statusFilter.innerHTML = '<option value="All">All Statuses</option>';
+        Array.from(foundStatuses).sort().forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s; opt.textContent = s;
+            statusFilter.appendChild(opt);
+        });
     };
     
-    populatePeriods();
+    populateFilters();
 
-    // Check specific selected combined period
     const matchesPeriod = (row, periodValue) => {
         if (periodValue === 'All') return true;
-        
-        // Strict mapping check: Does this row contain the exact extracted period?
         const rowPeriods = getPeriodsFromRow(row);
         return rowPeriods.has(periodValue);
+    };
+
+    const matchesStatus = (row, statusValue) => {
+        if (statusValue === 'All') return true;
+        return row['Status'] && row['Status'].trim() === statusValue;
     };
 
     const matchesSearch = (row, query) => {
@@ -151,43 +177,58 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (isExcluded(item, currentTab)) return false;
             const passConverted = filterConverted.checked ? 
                 Object.values(item).join(' ').toLowerCase().includes('converted') || Object.values(item).join(' ').toLowerCase().includes('won') : true;
-            return passConverted && matchesPeriod(item, periodFilter.value) && matchesSearch(item, searchFilter.value);
+            return passConverted && matchesPeriod(item, periodFilter.value) && matchesSearch(item, searchFilter.value) && matchesStatus(item, statusFilter.value);
         });
 
-        filteredData.forEach(item => {
-            const tr = document.createElement('tr');
-            headers.forEach(header => {
-                const td = document.createElement('td');
-                const val = item[header] || '';
-                
-                if (val.toLowerCase().includes('closed') || val.toLowerCase().includes('lost')) td.innerHTML = `<span class="danger">${val}</span>`;
-                else if (val.toLowerCase().includes('won') || val.toLowerCase().includes('converted')) td.innerHTML = `<span class="success">${val}</span>`;
-                else td.textContent = val;
-                
-                tr.appendChild(td);
+        if (filteredData.length === 0) {
+            tableBody.innerHTML = `<tr><td colspan="${headers.length}" style="text-align:center; padding: 3rem 1rem; color: #666; font-size: 1.1rem; background: #fafafa;">No leads found in <strong>${currentTab}</strong> matching your selected filters.<br><span style="font-size: 0.9rem; color: #999;">Check the tabs above or broaden your filter criteria.</span></td></tr>`;
+        } else {
+            filteredData.forEach(item => {
+                const tr = document.createElement('tr');
+                headers.forEach(header => {
+                    const td = document.createElement('td');
+                    const val = item[header] || '';
+                    
+                    if (val.toLowerCase().includes('closed') || val.toLowerCase().includes('lost')) td.innerHTML = `<span class="danger">${val}</span>`;
+                    else if (val.toLowerCase().includes('won') || val.toLowerCase().includes('converted')) td.innerHTML = `<span class="success">${val}</span>`;
+                    else td.textContent = val;
+                    
+                    tr.appendChild(td);
+                });
+                tableBody.appendChild(tr);
             });
-            tableBody.appendChild(tr);
-        });
+        }
 
-        calculateMetrics();
+        calculateMetricsAndUpdateBadges();
     };
 
-    function calculateMetrics() {
+    function calculateMetricsAndUpdateBadges() {
         let total = 0, inFunnel = 0, converted = 0;
         
-        Object.keys(liveData).forEach(tab => {
-            liveData[tab].forEach(row => {
-                if (isExcluded(row, tab)) return;
-                const passConverted = filterConverted.checked ? 
-                    Object.values(row).join(' ').toLowerCase().includes('converted') || Object.values(row).join(' ').toLowerCase().includes('won') : true;
+        // Calculate global metrics and update Tab navigation badges
+        navLinks.forEach(link => {
+            const tName = link.getAttribute('data-tab');
+            let tabCount = 0;
+            
+            if (liveData[tName]) {
+                liveData[tName].forEach(row => {
+                    if (isExcluded(row, tName)) return;
+                    const passConverted = filterConverted.checked ? 
+                        Object.values(row).join(' ').toLowerCase().includes('converted') || Object.values(row).join(' ').toLowerCase().includes('won') : true;
 
-                if (passConverted && matchesPeriod(row, periodFilter.value) && matchesSearch(row, searchFilter.value)) {
-                    total++;
-                    const rowStr = Object.values(row).join(' ').toLowerCase();
-                    if (rowStr.includes('in funnel') || rowStr.includes('progress') || tab === 'In Funnel') inFunnel++;
-                    if (rowStr.includes('converted') || rowStr.includes('won')) converted++;
-                }
-            });
+                    if (passConverted && matchesPeriod(row, periodFilter.value) && matchesSearch(row, searchFilter.value) && matchesStatus(row, statusFilter.value)) {
+                        total++;
+                        tabCount++; // increment tab-specific counter
+                        const rowStr = Object.values(row).join(' ').toLowerCase();
+                        if (rowStr.includes('in funnel') || rowStr.includes('progress') || tName === 'In Funnel') inFunnel++;
+                        if (rowStr.includes('converted') || rowStr.includes('won')) converted++;
+                    }
+                });
+            }
+
+            // Inject badge into tab
+            const isActive = currentTab === tName;
+            link.innerHTML = `${tName} <span style="display:inline-block; background: ${isActive ? '#fff' : '#1A73E8'}; color: ${isActive ? '#1A73E8' : '#fff'}; padding: 2px 10px; border-radius: 20px; font-weight: 700; font-size: 0.8rem; margin-left: 8px; transition: all 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">${tabCount}</span>`;
         });
 
         document.getElementById('total-leads').textContent = total;
@@ -200,15 +241,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     navLinks.forEach(link => {
         link.addEventListener('click', (e) => {
+            // Re-render UI classes manually since innerHTML changes
+            currentTab = e.currentTarget.getAttribute('data-tab');
             navLinks.forEach(nl => nl.classList.remove('active'));
-            e.target.classList.add('active');
-            currentTab = e.target.getAttribute('data-tab');
+            e.currentTarget.classList.add('active');
             renderTable();
         });
     });
 
     filterConverted.addEventListener('change', renderTable);
     periodFilter.addEventListener('change', renderTable);
+    statusFilter.addEventListener('change', renderTable);
     searchFilter.addEventListener('input', renderTable);
 
     // PDF Report Generator Flow
