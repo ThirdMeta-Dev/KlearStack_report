@@ -174,7 +174,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function loadAllData() {
     for (const [tabName, gid] of Object.entries(TABS)) {
-        const url = \`https://docs.google.com/spreadsheets/d/\${SPREADSHEET_ID}/export?format=csv&gid=\${gid}\`;
+        // Use Google Visualization API endpoint to bypass CORS issues for public sheets
+        const url = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&gid=${gid}`;
         try {
             const response = await fetch(url);
             if (!response.ok) throw new Error("Private sheet or failed");
@@ -188,7 +189,7 @@ async function loadAllData() {
             
             liveData[tabName] = result.data;
         } catch (e) {
-            console.error(\`Failed to fetch \${tabName}: \`, e);
+            console.error(`Failed to fetch ${tabName}: `, e);
             liveData[tabName] = [];
         }
     }
